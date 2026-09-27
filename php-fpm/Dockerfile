@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y \
 		libxml2-dev \
 		libxslt-dev \
 		unzip \
+		git \
 	&& docker-php-ext-configure gd --with-freetype --with-jpeg \
 	&& docker-php-ext-configure intl \
 	&& docker-php-ext-install gd \
@@ -28,17 +29,15 @@ RUN apt-get update && apt-get install -y \
 	&& docker-php-ext-install intl \
 	&& docker-php-ext-install soap \
 	&& docker-php-ext-install xsl \
-	&& docker-php-ext-install pdo_mysql
+	&& docker-php-ext-install pdo_mysql \
+	&& docker-php-ext-install opcache
 RUN pecl install xdebug \
     && docker-php-ext-enable xdebug
 
 COPY docker-php-ram-limit.ini /usr/local/etc/php/conf.d/
+COPY docker-php-performance.ini /usr/local/etc/php/conf.d/
 
 RUN mv "$PHP_INI_DIR/php.ini-development" "$PHP_INI_DIR/php.ini"
-
-# Install Nodejs
-RUN curl -sL https://deb.nodesource.com/setup_14.x | bash - && \
-    apt-get update && apt-get install -y nodejs npm
 
 # Install mhsendmail for Mailhog integration
 RUN curl -L https://github.com/mailhog/mhsendmail/releases/download/v0.2.0/mhsendmail_linux_amd64 -o mhsendmail_linux_amd64 \
@@ -53,7 +52,8 @@ COPY --from=composer:2.2 /usr/bin/composer /usr/bin/composer
 
 # Install blackfire prob
 RUN version=$(php -r "echo PHP_MAJOR_VERSION.PHP_MINOR_VERSION;") \
-    && curl -A "Docker" -o /tmp/blackfire-probe.tar.gz -D - -L -s https://blackfire.io/api/v1/releases/probe/php/linux/amd64/$version \
+    && arch=$(uname -m | sed -e 's/x86_64/amd64/' -e 's/aarch64/arm64/') \
+    && curl -A "Docker" -o /tmp/blackfire-probe.tar.gz -D - -L -s https://blackfire.io/api/v1/releases/probe/php/linux/$arch/$version \
     && tar zxpf /tmp/blackfire-probe.tar.gz -C /tmp \
     && mv /tmp/blackfire-*.so $(php -r "echo ini_get('extension_dir');")/blackfire.so \
     && printf "extension=blackfire.so\nblackfire.agent_socket=tcp://blackfire:8707\n" > $PHP_INI_DIR/conf.d/blackfire.ini
